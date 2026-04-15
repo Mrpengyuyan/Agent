@@ -8,6 +8,8 @@ from typing import List
 from llama_index.core.vector_stores import FilterCondition
 from llama_index.core import SummaryIndex
 from llama_index.core.tools import QueryEngineTool
+from llama_index.embeddings.ollama import OllamaEmbedding
+from llama_index.core import Settings
 
 
 def add(x: int, y: int) -> int:
@@ -23,42 +25,45 @@ def mystery(x: int, y: int) -> int:
 add_tool = FunctionTool.from_defaults(fn=add)
 mystery_tool = FunctionTool.from_defaults(fn=mystery)
 
+Settings.embed_model = OllamaEmbedding(model_name="nomic-embed-text")
+Settings.llm = Ollama(model="llama3.2:1b")
 llm = Ollama(model="llama3.2:1b")
 response = llm.predict_and_call(
     [add_tool, mystery_tool],
-    "Tell me the output of the mystery function on 2 and 9",
-    verbose=True,
+    "Tell me the output of the add function on 2 and 9",
+    verbose=False
 )
 print(str(response))
-
 
 # load documents
 documents = SimpleDirectoryReader(input_files=["./agentDemo/窦茂川简历.pdf"]).load_data()
 
+
 splitter = SentenceSplitter(chunk_size=1024)
 nodes = splitter.get_nodes_from_documents(documents)
 
-print(nodes[0].get_content(resumedata_mode="all"))
+# print(nodes[1].get_content(metadata_mode="all"))
+
 
 vector_index = VectorStoreIndex(nodes)
-query_engine = vector_index.as_query_engine(similarity_top_k=2)
 
+# query_engine = vector_index.as_query_engine(similarity_top_k=2)
 query_engine = vector_index.as_query_engine(
     similarity_top_k=2,
     filters=MetadataFilters.from_dicts(
         [
-            {"key": "page_label", "value": "2"}
+            {"key": "page_label", "value": "1"}
         ]
     )
 )
 
-response = query_engine.query(
-    "What are some high-level results of the resume?",
-)
-print(str(response))
+# response = query_engine.query(
+#     "What are some high-level results of the resume?",
+# )
+# print(str(response))
 
-for n in response.source_nodes:
-    print(n.metadata)
+# for n in response.source_nodes:
+#     print(n.metadata)
 
 
 def vector_query(
@@ -93,7 +98,7 @@ vector_query_tool = FunctionTool.from_defaults(
     fn=vector_query
 )
 
-llm = Ollama(model="gpt-3.5-turbo", temperature=0)
+llm = Ollama(model="llama3.2:1b", temperature=0)
 response = llm.predict_and_call(
     [vector_query_tool],
     "What are the high-level results of the resume as described on page 2?",
@@ -105,7 +110,7 @@ for n in response.source_nodes:
 summary_index = SummaryIndex(nodes)
 summary_query_engine = summary_index.as_query_engine(
     response_mode="tree_summarize",
-    use_async=True,
+    use_async=False,
 )
 summary_tool = QueryEngineTool.from_defaults(
     name="summary_tool",
